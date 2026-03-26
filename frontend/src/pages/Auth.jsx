@@ -240,6 +240,52 @@ export function VerifyEmail() {
   );
 }
 
+// ─── RESET PASSWORD ───────────────────────────────────
+export function ResetPassword() {
+  const navigate = useNavigate();
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
+    resolver: zodResolver(
+      z.object({
+        password: z.string().min(6, 'Min 6 characters')
+          .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Must include uppercase, lowercase, number'),
+        confirmPassword: z.string(),
+      }).refine(d => d.password === d.confirmPassword, {
+        message: "Passwords don't match", path: ['confirmPassword'],
+      })
+    ),
+  });
+
+  const onSubmit = async ({ password }) => {
+    try {
+      await authApi.resetPassword({ token, password });
+      toast.success('Password reset! Please login.');
+      navigate('/login');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Reset failed');
+    }
+  };
+
+  return (
+    <div style={PAGE_STYLE}>
+      <motion.div style={CARD_STYLE} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}>
+        <Logo />
+        <h2 style={{ fontSize: 22, fontWeight: 700, textAlign: 'center', marginBottom: 8 }}>Set New Password</h2>
+        <p style={{ fontSize: 14, color: 'var(--text-2)', textAlign: 'center', marginBottom: 24 }}>Enter your new password below.</p>
+        <PasswordInput label="New Password" id="np" register={register('password')} error={errors.password} placeholder="Min 6 characters" />
+        <PasswordInput label="Confirm Password" id="cp" register={register('confirmPassword')} error={errors.confirmPassword} placeholder="Repeat password" />
+        <button className="btn-fv btn-primary btn-block btn-lg" onClick={handleSubmit(onSubmit)} disabled={isSubmitting}>
+          {isSubmitting ? <Spinner size={16} color="#fff" /> : 'Reset Password'}
+        </button>
+        <p style={{ textAlign: 'center', marginTop: 16, fontSize: 14 }}>
+          <Link to="/login" style={{ color: 'var(--primary)', fontWeight: 600 }}>← Back to login</Link>
+        </p>
+      </motion.div>
+    </div>
+  );
+}
+
 // ─── FORGOT PASSWORD ──────────────────────────────────
 export function ForgotPassword() {
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm();
@@ -280,5 +326,8 @@ export function ForgotPassword() {
         </p>
       </motion.div>
     </div>
+    
   );
+  
+  
 }
