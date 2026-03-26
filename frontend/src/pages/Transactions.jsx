@@ -22,8 +22,7 @@ const TxRow = ({ tx, onEdit, onDelete }) => {
         </div>
         <div className="tx-info">
           <div className="tx-desc">{tx.description || cat?.name || 'Transaction'}
-            {tx.autoCreated && <span style={{ marginLeft: 8 }} className="badge-fv badge-primary" style={{ fontSize: 10 }}>AUTO</span>}
-            {tx.isRecurring && <span style={{ marginLeft: 6, fontSize: 10, background: 'var(--primary-light)', color: 'var(--primary)', padding: '2px 6px', borderRadius: 20, fontWeight: 700 }}>↻</span>}
+{tx.autoCreated && <span className="badge-fv badge-primary" style={{ marginLeft: 8, fontSize: 10 }}>AUTO</span>}            {tx.isRecurring && <span style={{ marginLeft: 6, fontSize: 10, background: 'var(--primary-light)', color: 'var(--primary)', padding: '2px 6px', borderRadius: 20, fontWeight: 700 }}>↻</span>}
           </div>
           <div className="tx-meta">
             {acc && <span className="acc-chip">{acc.icon} {acc.name}</span>}
