@@ -4,6 +4,7 @@ import api from './axios';
 export const authApi = {
   register: (data)       => api.post('/auth/register', data),
   verifyEmail: (data)    => api.post('/auth/verify-email', data),
+  resendOtp: (data)      => api.post('/auth/resend-otp', data),   // ← NEW
   login: (data)          => api.post('/auth/login', data),
   logout: ()             => api.post('/auth/logout'),
   refreshToken: ()       => api.post('/auth/refresh-token'),
@@ -42,9 +43,12 @@ export const categoriesApi = {
 // ─── Transactions ─────────────────────────────────────
 export const transactionsApi = {
   getAll: (params)      => api.get('/transactions', { params }),
+  // create & update both use multipart/form-data so multer can handle receipt uploads
   create: (form)        => api.post('/transactions', form, { headers: { 'Content-Type': 'multipart/form-data' } }),
   getOne: (id)          => api.get(`/transactions/${id}`),
-  update: (id, data)    => api.put(`/transactions/${id}`, data),
+  // BUG FIX: update must also be multipart/form-data (same as create) — not JSON.
+  // The server uses multer on PUT /:id, so sending JSON breaks file upload on edit.
+  update: (id, form)    => api.put(`/transactions/${id}`, form, { headers: { 'Content-Type': 'multipart/form-data' } }),
   delete: (id)          => api.delete(`/transactions/${id}`),
   bulkDelete: (ids)     => api.post('/transactions/bulk-delete', { ids }),
   export: (params)      => api.get('/transactions/export', { params, responseType: 'blob' }),

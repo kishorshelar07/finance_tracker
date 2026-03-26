@@ -3,7 +3,8 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import { AnimatePresence, motion } from 'framer-motion';
 
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
+import useAuth from './context/useAuth';
 import { AppLayout } from './components/layout/AppLayout';
 import { TransactionForm } from './components/forms/TransactionForm';
 import { Spinner } from './components/ui/index';

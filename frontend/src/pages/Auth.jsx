@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, TrendingUp } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { useAuth } from '../context/AuthContext';
+import useAuth from '../context/useAuth';
 import { authApi } from '../api/index';
 import { Spinner, Divider } from '../components/ui/index';
 
@@ -101,8 +101,11 @@ export function Login() {
           {isSubmitting ? <Spinner size={16} color="#fff" /> : 'Sign In'}
         </button>
         <Divider label="or" />
+        {/* BUG FIX: React Hook Form ignores direct DOM manipulation.
+            Directly call onSubmit with demo credentials — bypassing handleSubmit
+            validation is fine here since we know demo creds are valid. */}
         <button className="btn-fv btn-outline btn-block"
-          onClick={() => { document.getElementById('email').value = 'demo@finvault.app'; handleSubmit(onSubmit)({ email: 'demo@finvault.app', password: 'Demo@1234' }); }}>
+          onClick={() => onSubmit({ email: 'demo@finvault.app', password: 'Demo@1234', rememberMe: false })}>
           🚀 Try Demo Account
         </button>
         <p style={{ textAlign: 'center', marginTop: 20, fontSize: 14, color: 'var(--text-2)' }}>

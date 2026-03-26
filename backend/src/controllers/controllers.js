@@ -50,15 +50,45 @@ exports.getBudgets = asyncHandler(async (req, res) => {
 
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfMonth   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  // BUG FIX: In aggregation pipelines, always cast to mongoose.Types.ObjectId.
+  // req.user._id is already an ObjectId from Mongoose, but being explicit prevents
+  // any edge-case string comparison issues in the $match stage.
+  const mongoose = require('mongoose');
+  const userId = new mongoose.Types.ObjectId(req.user._id);
 
   const enriched = await Promise.all(budgets.map(async (b) => {
+    const categoryObjectId = new mongoose.Types.ObjectId(b.categoryId._id);
+
     const spent = await Transaction.aggregate([
-      { $match: { userId: req.user._id, categoryId: b.categoryId._id, type: 'expense', date: { $gte: startOfMonth } } },
+      {
+        $match: {
+          userId,
+          categoryId: categoryObjectId,
+          type: 'expense',
+          date: { $gte: startOfMonth, $lte: endOfMonth },
+        },
+      },
       { $group: { _id: null, total: { $sum: '$amount' } } },
     ]);
+
     const spentAmount = spent[0]?.total || 0;
     const pct = Math.min((spentAmount / b.amountLimit) * 100, 999);
-    return { ...b.toObject(), spentAmount, percentUsed: parseFloat(pct.toFixed(1)) };
+
+    // Days left in current month
+    const daysInMonth = endOfMonth.getDate();
+    const todayDate   = now.getDate();
+    const daysLeft    = Math.max(0, daysInMonth - todayDate);
+
+    return {
+      ...b.toObject(),
+      spentAmount:  parseFloat(spentAmount.toFixed(2)),
+      remaining:    parseFloat((b.amountLimit - spentAmount).toFixed(2)),
+      percentUsed:  parseFloat(pct.toFixed(1)),
+      isOverBudget: spentAmount > b.amountLimit,
+      daysLeft,
+    };
   }));
 
   success(res, { budgets: enriched });
@@ -191,14 +221,18 @@ exports.resumeRecurring = asyncHandler(async (req, res, next) => {
 // DASHBOARD
 // ══════════════════════════════════════════════════════
 exports.getDashboardStats = asyncHandler(async (req, res) => {
-  const userId = req.user._id;
+  const mongoose = require('mongoose');
+  const userId = new mongoose.Types.ObjectId(req.user._id);
+
   const { start: thisStart, end: thisEnd } = getPeriodRange(req.query.period || 'this_month');
-  const lastMonth = new Date(thisStart);
-  lastMonth.setMonth(lastMonth.getMonth() - 1);
-  const { start: lastStart, end: lastEnd } = getMonthRange(lastMonth.getFullYear(), lastMonth.getMonth() + 1);
+  const { start: lastStart, end: lastEnd } = (() => {
+    const d = new Date(thisStart);
+    d.setMonth(d.getMonth() - 1);
+    return getMonthRange(d.getFullYear(), d.getMonth() + 1);
+  })();
 
   const [accounts, thisMonthAgg, lastMonthAgg] = await Promise.all([
-    Account.find({ userId, isActive: true }),
+    Account.find({ userId: req.user._id, isActive: true }),
     Transaction.aggregate([
       { $match: { userId, date: { $gte: thisStart, $lte: thisEnd } } },
       { $group: { _id: '$type', total: { $sum: '$amount' }, count: { $sum: 1 } } },
@@ -226,12 +260,12 @@ exports.getDashboardStats = asyncHandler(async (req, res) => {
 
   success(res, {
     totalBalance: parseFloat(totalBalance.toFixed(2)),
-    income: parseFloat(thisMth.income.toFixed(2)),
-    expense: parseFloat(thisMth.expense.toFixed(2)),
-    savings: parseFloat(savings.toFixed(2)),
-    savingsRate: parseFloat(savingsRate.toFixed(1)),
+    income:       parseFloat(thisMth.income.toFixed(2)),
+    expense:      parseFloat(thisMth.expense.toFixed(2)),
+    savings:      parseFloat(savings.toFixed(2)),
+    savingsRate:  parseFloat(savingsRate.toFixed(1)),
     changes: {
-      income: pctChange(thisMth.income, lastMth.income),
+      income:  pctChange(thisMth.income, lastMth.income),
       expense: pctChange(thisMth.expense, lastMth.expense),
       savings: pctChange(savings, lastMth.income - lastMth.expense),
     },

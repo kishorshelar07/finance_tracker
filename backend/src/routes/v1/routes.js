@@ -19,10 +19,13 @@ const { transactionValidator } = require('../../middleware/validate');
 
 txRouter.use(protect);
 txRouter.get('/', txCtrl.getTransactions);
-txRouter.post('/', upload.single('receipt'), transactionValidator, txCtrl.createTransaction);
+// BUG FIX: Static routes (/export, /import-csv, /bulk-delete) MUST come
+// BEFORE the /:id param route, otherwise Express matches them as id="export" etc.
 txRouter.get('/export', txCtrl.exportTransactions);
 txRouter.post('/import-csv', csvUpload.single('file'), txCtrl.importCSV);
 txRouter.post('/bulk-delete', txCtrl.bulkDelete);
+// Dynamic :id routes come LAST
+txRouter.post('/', upload.single('receipt'), transactionValidator, txCtrl.createTransaction);
 txRouter.get('/:id', txCtrl.getTransaction);
 txRouter.put('/:id', upload.single('receipt'), txCtrl.updateTransaction);
 txRouter.delete('/:id', txCtrl.deleteTransaction);
@@ -33,10 +36,13 @@ const recurRouter = express.Router();
 recurRouter.use(protect);
 recurRouter.get('/', ctrl.getRecurring);
 recurRouter.post('/', ctrl.createRecurring);
-recurRouter.put('/:id', ctrl.updateRecurring);
-recurRouter.delete('/:id', ctrl.deleteRecurring);
+// BUG FIX: /:id/pause and /:id/resume MUST come BEFORE /:id
+// Otherwise PUT /:id matches first and Express never reaches /:id/pause
 recurRouter.put('/:id/pause', ctrl.pauseRecurring);
 recurRouter.put('/:id/resume', ctrl.resumeRecurring);
+// Generic /:id routes come after all specific sub-routes
+recurRouter.put('/:id', ctrl.updateRecurring);
+recurRouter.delete('/:id', ctrl.deleteRecurring);
 module.exports.recurRouter = recurRouter;
 
 // ─── budget.routes.js ─────────────────────────────────
@@ -55,10 +61,12 @@ const { goalValidator } = require('../../middleware/validate');
 goalRouter.use(protect);
 goalRouter.get('/', ctrl.getGoals);
 goalRouter.post('/', goalValidator, ctrl.createGoal);
-goalRouter.put('/:id', ctrl.updateGoal);
-goalRouter.delete('/:id', ctrl.deleteGoal);
+// BUG FIX: /:id/contribute and /:id/contributions BEFORE /:id
 goalRouter.post('/:id/contribute', ctrl.addContribution);
 goalRouter.get('/:id/contributions', ctrl.getContributions);
+// Generic /:id routes come after
+goalRouter.put('/:id', ctrl.updateGoal);
+goalRouter.delete('/:id', ctrl.deleteGoal);
 module.exports.goalRouter = goalRouter;
 
 // ─── dashboard.routes.js ──────────────────────────────

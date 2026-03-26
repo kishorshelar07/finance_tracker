@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import useAuth from '../context/useAuth';
 import { userApi } from '../api/index';
 import { CURRENCIES } from '../constants/index';
 import { Spinner, Toggle } from '../components/ui/index';

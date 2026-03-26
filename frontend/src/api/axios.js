@@ -29,7 +29,14 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // ── BUG FIX: Never try to refresh when the failing request IS the
+    // refresh-token endpoint. Without this guard the interceptor retries
+    // /auth/refresh-token → gets another 401 → the catch block does
+    // window.location.href = '/login' → page reloads → AuthContext mounts
+    // again and calls refreshToken() → interceptor fires again → ∞ loop.
+    const isRefreshEndpoint = originalRequest.url?.includes('refresh-token');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isRefreshEndpoint) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -52,7 +59,12 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         localStorage.removeItem('accessToken');
-        window.location.href = '/login';
+        // ── BUG FIX: Don't use window.location.href here. A hard redirect
+        // reloads the page, which remounts AuthContext, which calls
+        // refreshToken() again, restarting the loop. Instead, fire a custom
+        // event that AuthContext (or a router-level listener) can handle with
+        // a soft navigation — no page reload, no loop.
+        window.dispatchEvent(new CustomEvent('auth:session-expired'));
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
@@ -61,7 +73,6 @@ api.interceptors.response.use(
 
     return Promise.reject(error);
   }
-  
 );
 
 export default api;

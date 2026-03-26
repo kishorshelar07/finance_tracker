@@ -35,6 +35,74 @@ const setRefreshCookie = (res, token, rememberMe = false) => {
 const generateOTP = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
 
+// ─── OTP Email HTML ───────────────────────────────────
+const otpEmailHtml = (name, otp, expiryMinutes = 10) => `
+  <!DOCTYPE html>
+  <html>
+  <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+  <body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+    <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+      <div style="background:linear-gradient(135deg,#1A56DB,#1e40af);padding:32px 40px;text-align:center">
+        <div style="display:inline-block;background:rgba(255,255,255,.15);border-radius:12px;padding:10px 16px;margin-bottom:12px">
+          <span style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">FinVault</span>
+        </div>
+        <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700">Verify your email</h1>
+      </div>
+      <div style="padding:40px">
+        <p style="color:#374151;font-size:15px;margin:0 0 8px">Hi <strong>${name}</strong>,</p>
+        <p style="color:#6b7280;font-size:14px;margin:0 0 28px;line-height:1.6">
+          Use the code below to verify your FinVault account. It expires in <strong>${expiryMinutes} minutes</strong>.
+        </p>
+        <div style="background:#f0f4ff;border:2px dashed #c7d7fe;border-radius:12px;padding:24px;text-align:center;margin-bottom:28px">
+          <div style="font-size:42px;font-weight:800;letter-spacing:10px;color:#1A56DB;font-family:monospace">${otp}</div>
+          <p style="margin:8px 0 0;color:#6b7280;font-size:12px">Do not share this code with anyone</p>
+        </div>
+        <p style="color:#9ca3af;font-size:12px;margin:0;text-align:center">
+          If you didn't create a FinVault account, you can safely ignore this email.
+        </p>
+      </div>
+      <div style="background:#f9fafb;padding:16px 40px;border-top:1px solid #f3f4f6;text-align:center">
+        <p style="color:#9ca3af;font-size:11px;margin:0">© ${new Date().getFullYear()} FinVault. All rights reserved.</p>
+      </div>
+    </div>
+  </body>
+  </html>
+`;
+
+const resetEmailHtml = (name, resetURL) => `
+  <!DOCTYPE html>
+  <html>
+  <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+  <body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+    <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+      <div style="background:linear-gradient(135deg,#1A56DB,#1e40af);padding:32px 40px;text-align:center">
+        <div style="display:inline-block;background:rgba(255,255,255,.15);border-radius:12px;padding:10px 16px;margin-bottom:12px">
+          <span style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">FinVault</span>
+        </div>
+        <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700">Reset your password</h1>
+      </div>
+      <div style="padding:40px">
+        <p style="color:#374151;font-size:15px;margin:0 0 8px">Hi <strong>${name}</strong>,</p>
+        <p style="color:#6b7280;font-size:14px;margin:0 0 28px;line-height:1.6">
+          We received a request to reset your password. Click the button below — this link expires in <strong>30 minutes</strong>.
+        </p>
+        <div style="text-align:center;margin-bottom:28px">
+          <a href="${resetURL}" style="display:inline-block;background:#1A56DB;color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 36px;border-radius:10px">
+            Reset Password
+          </a>
+        </div>
+        <p style="color:#6b7280;font-size:12px;word-break:break-all;margin:0">
+          Or paste this link: <a href="${resetURL}" style="color:#1A56DB">${resetURL}</a>
+        </p>
+        <p style="color:#9ca3af;font-size:12px;margin:20px 0 0;text-align:center">
+          If you didn't request a password reset, ignore this email — your password won't change.
+        </p>
+      </div>
+    </div>
+  </body>
+  </html>
+`;
+
 // ─── REGISTER ─────────────────────────────────────────
 exports.register = asyncHandler(async (req, res, next) => {
   const { name, email, password } = req.body;
@@ -54,22 +122,16 @@ exports.register = asyncHandler(async (req, res, next) => {
     isVerified: false,
   });
 
-  // Send verification email
+  // Send verification email — non-blocking (don't fail registration if email fails)
   try {
     await sendEmail({
       to: email,
-      subject: 'Verify your FinVault account',
-      html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:auto">
-          <h2 style="color:#1A56DB">Welcome to FinVault, ${name}!</h2>
-          <p>Your email verification code is:</p>
-          <div style="font-size:36px;font-weight:bold;letter-spacing:8px;text-align:center;
-               background:#F0F4F8;padding:20px;border-radius:8px;color:#0F172A">${otp}</div>
-          <p style="color:#475569">This code expires in <strong>10 minutes</strong>.</p>
-        </div>`,
+      subject: 'FinVault — Verify your email',
+      html: otpEmailHtml(name, otp, 10),
     });
   } catch (e) {
-    console.warn('Email send failed (non-blocking):', e.message);
+    // OTP already logged to console by email.js fallback
+    console.warn('Register: email send failed (non-blocking):', e.message);
   }
 
   // Auto-create default categories for new user
@@ -87,11 +149,13 @@ exports.verifyEmail = asyncHandler(async (req, res, next) => {
   if (!user) return next(new AppError('User not found.', 404));
   if (user.isVerified) return next(new AppError('Email already verified.', 400));
 
-  if (
-    user.verificationOTP !== otp ||
-    user.verificationOTPExpiry < Date.now()
-  ) {
-    return next(new AppError('Invalid or expired OTP.', 400));
+  // FIX: compare as strings (both should already be strings, but be safe)
+  const otpMatch = String(user.verificationOTP) === String(otp);
+  const otpValid = user.verificationOTPExpiry > Date.now();
+
+  if (!otpMatch || !otpValid) {
+    const reason = !otpMatch ? 'Invalid OTP.' : 'OTP has expired. Please request a new one.';
+    return next(new AppError(reason, 400));
   }
 
   user.isVerified = true;
@@ -99,7 +163,7 @@ exports.verifyEmail = asyncHandler(async (req, res, next) => {
   user.verificationOTPExpiry = undefined;
   await user.save({ validateBeforeSave: false });
 
-  // Issue tokens
+  // Issue tokens immediately after verification
   const accessToken = generateAccessToken(user._id);
   const refreshToken = generateRefreshToken(user._id);
 
@@ -115,8 +179,41 @@ exports.verifyEmail = asyncHandler(async (req, res, next) => {
 
   success(res, {
     accessToken,
-    user: { _id: user._id, name: user.name, email: user.email, currency: user.currency },
-  }, 'Email verified successfully.');
+    user: {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      currency: user.currency,
+      monthlyIncome: user.monthlyIncome,
+      savingsGoalPercent: user.savingsGoalPercent,
+      profilePicture: user.profilePicture,
+    },
+  }, 'Email verified successfully. Welcome to FinVault!');
+});
+
+// ─── RESEND OTP ───────────────────────────────────────
+exports.resendOTP = asyncHandler(async (req, res, next) => {
+  const { userId, email } = req.body;
+  const user = await User.findOne(userId ? { _id: userId } : { email });
+  if (!user) return next(new AppError('User not found.', 404));
+  if (user.isVerified) return next(new AppError('Email already verified.', 400));
+
+  const otp = generateOTP();
+  user.verificationOTP = otp;
+  user.verificationOTPExpiry = new Date(Date.now() + 10 * 60 * 1000);
+  await user.save({ validateBeforeSave: false });
+
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: 'FinVault — New Verification OTP',
+      html: otpEmailHtml(user.name, otp, 10),
+    });
+  } catch (e) {
+    console.warn('Resend OTP: email failed (OTP logged above):', e.message);
+  }
+
+  success(res, { userId: user._id }, 'New OTP sent to your email.');
 });
 
 // ─── LOGIN ────────────────────────────────────────────
@@ -129,15 +226,22 @@ exports.login = asyncHandler(async (req, res, next) => {
   }
 
   if (!user.isVerified) {
-    // Resend OTP
+    // Resend a fresh OTP automatically
     const otp = generateOTP();
     user.verificationOTP = otp;
     user.verificationOTPExpiry = new Date(Date.now() + 10 * 60 * 1000);
     await user.save({ validateBeforeSave: false });
     try {
-      await sendEmail({ to: email, subject: 'FinVault — New OTP', html: `<p>Your new OTP: <strong>${otp}</strong></p>` });
-    } catch (e) { /* non-blocking */ }
-    return next(new AppError('Please verify your email first. A new OTP has been sent.', 403));
+      await sendEmail({
+        to: user.email,
+        subject: 'FinVault — New Verification OTP',
+        html: otpEmailHtml(user.name, otp, 10),
+      });
+    } catch (e) { /* non-blocking — OTP logged to console */ }
+    return next(new AppError(
+      'Please verify your email first. A new OTP has been sent to your inbox.',
+      403
+    ));
   }
 
   const accessToken = generateAccessToken(user._id);
@@ -196,6 +300,8 @@ exports.refreshToken = asyncHandler(async (req, res, next) => {
       name: user.name,
       email: user.email,
       currency: user.currency,
+      monthlyIncome: user.monthlyIncome,
+      savingsGoalPercent: user.savingsGoalPercent,
       profilePicture: user.profilePicture,
     },
   }, 'Token refreshed.');
@@ -216,7 +322,7 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
   const { email } = req.body;
   const user = await User.findOne({ email });
 
-  // Always respond the same to prevent enumeration
+  // Always respond the same to prevent email enumeration
   if (!user) {
     return success(res, null, 'If that email exists, a reset link has been sent.');
   }
@@ -231,20 +337,15 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
   try {
     await sendEmail({
       to: email,
-      subject: 'FinVault — Password Reset',
-      html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:auto">
-          <h2 style="color:#1A56DB">Reset Your Password</h2>
-          <p>Click the button below to reset your password. This link expires in <strong>30 minutes</strong>.</p>
-          <a href="${resetURL}" style="display:inline-block;background:#1A56DB;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">Reset Password</a>
-          <p style="color:#94A3B8;font-size:12px;margin-top:16px">If you didn't request this, please ignore this email.</p>
-        </div>`,
+      subject: 'FinVault — Password Reset Request',
+      html: resetEmailHtml(user.name, resetURL),
     });
   } catch (e) {
+    // Rollback token if email truly fails (not just console fallback)
     user.passwordResetToken = undefined;
     user.passwordResetExpiry = undefined;
     await user.save({ validateBeforeSave: false });
-    return next(new AppError('Email could not be sent. Try again later.', 500));
+    return next(new AppError('Email could not be sent. Please try again later.', 500));
   }
 
   success(res, null, 'Password reset link sent to your email.');
@@ -267,7 +368,7 @@ exports.resetPassword = asyncHandler(async (req, res, next) => {
   user.passwordResetExpiry = undefined;
   await user.save();
 
-  // Revoke all refresh tokens
+  // Revoke all refresh tokens for security
   await RefreshToken.updateMany({ userId: user._id }, { isRevoked: true });
 
   success(res, null, 'Password reset successful. Please log in.');
@@ -277,24 +378,26 @@ exports.resetPassword = asyncHandler(async (req, res, next) => {
 const createDefaultCategories = async (userId) => {
   const Category = require('../models/Category');
   const defaults = [
-    { name: 'Food & Dining', type: 'expense', color: '#EF4444', icon: '🍕' },
-    { name: 'Transport', type: 'expense', color: '#3B82F6', icon: '🚗' },
-    { name: 'Shopping', type: 'expense', color: '#8B5CF6', icon: '🛍️' },
-    { name: 'Entertainment', type: 'expense', color: '#F59E0B', icon: '🎬' },
-    { name: 'Healthcare', type: 'expense', color: '#10B981', icon: '💊' },
-    { name: 'Bills & Utilities', type: 'expense', color: '#6B7280', icon: '💡' },
-    { name: 'Rent / EMI', type: 'expense', color: '#DC2626', icon: '🏠' },
-    { name: 'Groceries', type: 'expense', color: '#059669', icon: '🛒' },
-    { name: 'Education', type: 'expense', color: '#0284C7', icon: '📚' },
-    { name: 'Subscriptions', type: 'expense', color: '#7C3AED', icon: '📱' },
-    { name: 'Travel', type: 'expense', color: '#0891B2', icon: '✈️' },
-    { name: 'Salary', type: 'income', color: '#059669', icon: '💰' },
-    { name: 'Freelance', type: 'income', color: '#0284C7', icon: '💻' },
-    { name: 'Investment Returns', type: 'income', color: '#D97706', icon: '📊' },
-    { name: 'Rental Income', type: 'income', color: '#16A34A', icon: '🏘️' },
-    { name: 'Gift / Bonus', type: 'income', color: '#EC4899', icon: '🎁' },
+    { name: 'Food & Dining',    type: 'expense', color: '#EF4444', icon: '🍕' },
+    { name: 'Transport',        type: 'expense', color: '#3B82F6', icon: '🚗' },
+    { name: 'Shopping',         type: 'expense', color: '#8B5CF6', icon: '🛍️' },
+    { name: 'Entertainment',    type: 'expense', color: '#F59E0B', icon: '🎬' },
+    { name: 'Healthcare',       type: 'expense', color: '#10B981', icon: '💊' },
+    { name: 'Bills & Utilities',type: 'expense', color: '#6B7280', icon: '💡' },
+    { name: 'Rent / EMI',       type: 'expense', color: '#DC2626', icon: '🏠' },
+    { name: 'Groceries',        type: 'expense', color: '#059669', icon: '🛒' },
+    { name: 'Education',        type: 'expense', color: '#0284C7', icon: '📚' },
+    { name: 'Subscriptions',    type: 'expense', color: '#7C3AED', icon: '📱' },
+    { name: 'Travel',           type: 'expense', color: '#0891B2', icon: '✈️' },
+    { name: 'Personal Care',    type: 'expense', color: '#F43F5E', icon: '🪥' },
+    { name: 'Salary',           type: 'income',  color: '#059669', icon: '💰' },
+    { name: 'Freelance',        type: 'income',  color: '#0284C7', icon: '💻' },
+    { name: 'Investment Returns',type: 'income', color: '#D97706', icon: '📊' },
+    { name: 'Rental Income',    type: 'income',  color: '#16A34A', icon: '🏘️' },
+    { name: 'Gift / Bonus',     type: 'income',  color: '#EC4899', icon: '🎁' },
   ];
 
   const docs = defaults.map(d => ({ ...d, userId, isDefault: true }));
+  // ordered:false = don't stop if one duplicate slips through
   await Category.insertMany(docs, { ordered: false }).catch(() => {});
 };

@@ -71,7 +71,9 @@ export const TransactionForm = ({ open, onClose, onSaved, accounts, editTx = nul
       if (receiptFile) form.append('receipt', receiptFile);
 
       if (editTx) {
-        await transactionsApi.update(editTx._id, Object.fromEntries(form));
+        // BUG FIX: Must send FormData (not Object.fromEntries) so multer
+        // can parse it AND handle the receipt file if attached.
+        await transactionsApi.update(editTx._id, form);
         toast.success('Transaction updated!');
       } else {
         await transactionsApi.create(form);

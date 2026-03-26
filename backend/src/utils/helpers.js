@@ -40,40 +40,64 @@ const getMonthRange = (year, month) => {
   return { start, end };
 };
 
+// BUG FIX: Never mutate `now`. Always create fresh Date objects.
+// Old code did: new Date(now.setHours(...)) which mutates `now`
+// then subsequent case branches see the mutated value.
 const getPeriodRange = (period) => {
+  // Create a fresh Date each time — never mutate this
   const now = new Date();
   let start, end;
-  end = new Date();
 
   switch (period) {
     case 'today':
-      start = new Date(now.setHours(0, 0, 0, 0));
-      end = new Date();
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      end   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
       break;
-    case 'this_week':
-      start = new Date(now.setDate(now.getDate() - now.getDay()));
-      start.setHours(0, 0, 0, 0);
+
+    case 'this_week': {
+      const dow = now.getDay(); // 0=Sun
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow, 0, 0, 0, 0);
+      end   = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6, 23, 59, 59, 999);
       break;
+    }
+
     case 'this_month':
       start = new Date(now.getFullYear(), now.getMonth(), 1);
+      end   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
       break;
+
     case 'last_month':
       start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+      end   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
       break;
+
     case 'last_3_months':
       start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+      end   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
       break;
+
     case 'last_6_months':
       start = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+      end   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
       break;
+
     case 'this_year':
       start = new Date(now.getFullYear(), 0, 1);
+      end   = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
       break;
+
+    case 'all':
+      start = new Date(2000, 0, 1);
+      end   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      break;
+
     default:
+      // Default = this month
       start = new Date(now.getFullYear(), now.getMonth(), 1);
+      end   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
   }
-  return { start, end: end || new Date() };
+
+  return { start, end };
 };
 
 module.exports = {

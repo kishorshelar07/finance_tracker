@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Wallet, List, PieChart, Target,
   Repeat, FileText, Settings, TrendingUp, LogOut,
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import useAuth from '../../context/useAuth';
 import { Avatar } from '../ui/index';
 
 const NAV = [

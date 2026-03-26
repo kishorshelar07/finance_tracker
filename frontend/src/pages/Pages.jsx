@@ -280,8 +280,22 @@ export function Reports() {
         <div className="filter-group"><span className="filter-label">Year</span>
           <select className="form-select" value={year} onChange={e=>setYear(Number(e.target.value))}>{[2023,2024,2025,2026].map(y=><option key={y}>{y}</option>)}</select>
         </div>
-        <button className="btn-fv btn-outline" onClick={()=>toast.info('PDF: GET /api/v1/reports/monthly')}><Download size={15}/> PDF</button>
-        <button className="btn-fv btn-outline" onClick={()=>toast.info('Excel: GET /api/v1/transactions/export?format=xlsx')}><Download size={15}/> Excel</button>
+        <button className="btn-fv btn-outline" disabled={loading} onClick={async()=>{
+          try{
+            const res=await import('../api/index').then(m=>m.transactionsApi.export({period:'this_month',format:'csv'}));
+            const url=URL.createObjectURL(res.data);
+            const a=document.createElement('a');a.href=url;a.download=`report-${year}-${String(month).padStart(2,'0')}.csv`;a.click();URL.revokeObjectURL(url);
+            toast.success('CSV exported!');
+          }catch{toast.error('Export failed');}
+        }}><Download size={15}/> CSV</button>
+        <button className="btn-fv btn-outline" disabled={loading} onClick={async()=>{
+          try{
+            const res=await import('../api/index').then(m=>m.transactionsApi.export({period:'this_month',format:'xlsx'}));
+            const url=URL.createObjectURL(res.data);
+            const a=document.createElement('a');a.href=url;a.download=`report-${year}-${String(month).padStart(2,'0')}.xlsx`;a.click();URL.revokeObjectURL(url);
+            toast.success('Excel exported!');
+          }catch{toast.error('Export failed');}
+        }}><Download size={15}/> Excel</button>
       </div>
       {loading?<div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16,marginBottom:24}}>{[1,2,3,4].map(i=><Skeleton key={i} height={90} borderRadius={12}/>)}</div>
       :report&&(

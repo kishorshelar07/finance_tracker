@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Menu, Bell, Plus, X } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import useAuth from '../../context/useAuth';
 import { Avatar } from '../ui/index';
 
 export const Header = ({ onMenuToggle, pageTitle, onAddTx }) => {
