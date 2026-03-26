@@ -60,7 +60,7 @@ export function Login() {
   const navigate = useNavigate();
   const { register, handleSubmit, formState: { errors, isSubmitting }, setError } = useForm({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: 'demo@finvault.app', password: 'Demo@1234', rememberMe: false },
+    // defaultValues: { email: 'demo@finvault.app', password: 'Demo@1234', rememberMe: false },
   });
 
   const onSubmit = async ({ email, password, rememberMe }) => {
