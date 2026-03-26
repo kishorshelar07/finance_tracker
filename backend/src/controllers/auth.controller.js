@@ -24,8 +24,8 @@ const setRefreshCookie = (res, token, rememberMe = false) => {
 
   res.cookie('refreshToken', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure: process.env.COOKIE_SECURE === 'true',
+    sameSite: process.env.COOKIE_SAME_SITE || 'lax',
     maxAge,
     path: '/',
   });
