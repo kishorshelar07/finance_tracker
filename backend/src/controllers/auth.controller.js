@@ -108,7 +108,17 @@ exports.register = asyncHandler(async (req, res, next) => {
   const { name, email, password } = req.body;
 
   const existing = await User.findOne({ email });
-  if (existing) return next(new AppError('Email already registered.', 409));
+
+  // BUG FIX: If user exists AND is verified → block (already registered)
+  // If user exists but NOT verified → delete old record, let them re-register
+  // (their OTP expired or they want a fresh start)
+  if (existing) {
+    if (existing.isVerified) {
+      return next(new AppError('Email already registered. Please login or use Forgot Password.', 409));
+    }
+    // Unverified user — clean up old record so they can register fresh
+    await existing.deleteOne();
+  }
 
   const otp = generateOTP();
   const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 min

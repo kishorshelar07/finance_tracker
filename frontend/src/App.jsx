@@ -12,7 +12,7 @@ import { useAccounts } from './hooks/index';
 
 // Pages
 import Landing from './pages/Landing';
-import { Login, Register, VerifyEmail, ForgotPassword } from './pages/Auth';
+import { Login, Register, VerifyEmail, ForgotPassword, ResetPassword } from './pages/Auth';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import { Accounts, Budgets, Goals, Recurring, Reports } from './pages/Pages';
@@ -115,6 +115,8 @@ export default function App() {
         <Route path="/register"       element={<RedirectIfAuth><Register /></RedirectIfAuth>} />
         <Route path="/verify-email"   element={<VerifyEmail />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Protected routes */}
         <Route path="/*" element={
