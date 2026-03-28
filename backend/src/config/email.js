@@ -1,93 +1,52 @@
-const nodemailer = require('nodemailer');
+// ─── Resend (production) + Console fallback (local dev) ──────────
 
-// ─── Validate email config on startup ────────────────────────────
-const validateEmailConfig = () => {
-  const required = ['EMAIL_HOST', 'EMAIL_USER', 'EMAIL_PASS'];
-  const missing = required.filter(k => !process.env[k] || process.env[k].startsWith('your_'));
-  if (missing.length > 0) {
-    console.warn(`⚠️  Email not configured. Missing/placeholder: ${missing.join(', ')}`);
-    console.warn('   OTP emails will be logged to console instead.');
-    return false;
+let _resend = null;
+
+const getResend = () => {
+  if (!_resend) {
+    const { Resend } = require('resend');
+    _resend = new Resend(process.env.RESEND_API_KEY);
   }
-  return true;
+  return _resend;
 };
 
-const isEmailConfigured = validateEmailConfig();
+const hasResend = () =>
+  !!process.env.RESEND_API_KEY &&
+  !process.env.RESEND_API_KEY.startsWith('re_xxx');
 
-// ─── Reusable transporter (singleton) ────────────────────────────
-let _transporter = null;
-const getTransporter = () => {
-  if (!_transporter) {
-    _transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST,
-      port: parseInt(process.env.EMAIL_PORT) || 587,
-      // Use EMAIL_SECURE=true only for port 465
-      secure: process.env.EMAIL_SECURE === 'true',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-      tls: {
-        rejectUnauthorized: false,  // Helps with self-signed certs
-        minVersion: 'TLSv1.2',
-      },
-    });
-  }
-  return _transporter;
-};
+// ─── Startup log ──────────────────────────────────────────────────
+if (hasResend()) {
+  console.log('✅ Resend email service ready');
+} else {
+  console.warn('⚠️  RESEND_API_KEY not set — OTP will be logged to console (dev mode)');
+}
 
-// ─── Verify connection once on startup ───────────────────────────
-const verifyEmailConnection = async () => {
-  if (!isEmailConfigured) return;
-  try {
-    await getTransporter().verify();
-    console.log('✅ Email (SMTP) connection verified');
-  } catch (err) {
-    console.error('❌ Email SMTP error:', err.message);
-    console.error('   Fix .env: EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS');
-    _transporter = null; // Reset so it tries again next time
-  }
-};
-// Verify without blocking server startup
-verifyEmailConnection();
+// ─── Send email ───────────────────────────────────────────────────
+const sendEmail = async ({ to, subject, html }) => {
+  // Always print OTP to console — visible in Render logs as backup
+  const otpMatch = html?.match(/\b\d{6}\b/);
+  const linkMatch = html?.match(/href="([^"]+reset[^"]+)"/);
+  if (otpMatch) console.log(`\n📧 OTP for ${to}: ${otpMatch[0]}`);
+  if (linkMatch) console.log(`🔗 Reset link: ${linkMatch[1]}\n`);
 
-// ─── Send email ──────────────────────────────────────────────────
-const sendEmail = async ({ to, subject, html, text }) => {
-  // BUG FIX: dotenv does NOT strip quotes from values with spaces.
-  // If .env has: EMAIL_FROM="FinVault <x@x.com>"  ← quotes stay in the string!
-  // Solution: strip surrounding quotes from EMAIL_FROM at runtime.
-  const rawFrom = process.env.EMAIL_FROM || `FinVault <${process.env.EMAIL_USER}>`;
-  const from = rawFrom.replace(/^["']|["']$/g, '').trim();
-
-  // If email not configured — just log OTP to console (dev fallback)
-  if (!isEmailConfigured) {
-    console.log('\n' + '─'.repeat(60));
-    console.log('📧 [DEV EMAIL — SMTP NOT CONFIGURED]');
-    console.log(`   To:      ${to}`);
-    console.log(`   Subject: ${subject}`);
-    // Extract OTP from HTML for easy copy-paste during dev
-    const otpMatch = html?.match(/\b\d{6}\b/);
-    if (otpMatch) console.log(`   OTP:     ${otpMatch[0]}  ← copy this!`);
-    // Extract reset link
-    const linkMatch = html?.match(/href="([^"]+)"/);
-    if (linkMatch) console.log(`   Link:    ${linkMatch[1]}`);
-    console.log('─'.repeat(60) + '\n');
-    return { messageId: 'dev-console-log' };
+  // If no Resend key → just log (local dev fallback, don't crash)
+  if (!hasResend()) {
+    console.log(`[DEV] Email skipped — no RESEND_API_KEY. OTP logged above.`);
+    return { id: 'dev-console' };
   }
 
-  try {
-    const info = await getTransporter().sendMail({ from, to, subject, html, text });
-    console.log(`📧 Email sent to ${to}: ${info.messageId}`);
-    return info;
-  } catch (err) {
-    console.error(`❌ Email send failed to ${to}:`, err.message);
-    // Log OTP to console as fallback so dev can still test
-    const otpMatch = html?.match(/\b\d{6}\b/);
-    if (otpMatch) {
-      console.log(`🔑 [FALLBACK] OTP for ${to}: ${otpMatch[0]}`);
-    }
-    throw err;  // Let caller handle (auth controller catches this)
+  const from = process.env.EMAIL_FROM || 'FinVault <onboarding@resend.dev>';
+
+  const resend = getResend();
+  const { data, error } = await resend.emails.send({ from, to, subject, html });
+
+  if (error) {
+    console.error(`❌ Resend failed for ${to}:`, error.message);
+    throw new Error(error.message);
   }
+
+  console.log(`✅ Email sent to ${to} — id: ${data.id}`);
+  return data;
 };
 
 module.exports = { sendEmail };
