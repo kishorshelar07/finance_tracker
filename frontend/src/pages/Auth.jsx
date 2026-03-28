@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -60,7 +60,6 @@ export function Login() {
   const navigate = useNavigate();
   const { register, handleSubmit, formState: { errors, isSubmitting }, setError } = useForm({
     resolver: zodResolver(loginSchema),
-    // defaultValues: { email: 'demo@finvault.app', password: 'Demo@1234', rememberMe: false },
   });
 
   const onSubmit = async ({ email, password, rememberMe }) => {
@@ -101,9 +100,6 @@ export function Login() {
           {isSubmitting ? <Spinner size={16} color="#fff" /> : 'Sign In'}
         </button>
         <Divider label="or" />
-        {/* BUG FIX: React Hook Form ignores direct DOM manipulation.
-            Directly call onSubmit with demo credentials — bypassing handleSubmit
-            validation is fine here since we know demo creds are valid. */}
         <button className="btn-fv btn-outline btn-block"
           onClick={() => onSubmit({ email: 'demo@finvault.app', password: 'Demo@1234', rememberMe: false })}>
           🚀 Try Demo Account
@@ -177,12 +173,14 @@ export function Register() {
 
 // ─── OTP VERIFY ───────────────────────────────────────
 export function VerifyEmail() {
-  const navigate = useNavigate();
-  const params = new URLSearchParams(window.location.search);
-  const userId = params.get('userId');
-  const email  = params.get('email');
+  const navigate  = useNavigate();
+  const params    = new URLSearchParams(window.location.search);
+  const userId    = params.get('userId');
+  const email     = params.get('email');
+
   const [otp, setOtp]         = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
 
   const handleOtpChange = (val, idx) => {
     if (!/^\d?$/.test(val)) return;
@@ -192,6 +190,13 @@ export function VerifyEmail() {
   const handleKeyDown = (e, idx) => {
     if (e.key === 'Backspace' && !otp[idx] && idx > 0) document.getElementById(`otp-${idx - 1}`)?.focus();
   };
+  const handlePaste = (e) => {
+    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (text.length === 6) {
+      setOtp(text.split(''));
+      document.getElementById('otp-5')?.focus();
+    }
+  };
 
   const verify = async () => {
     const code = otp.join('');
@@ -200,11 +205,22 @@ export function VerifyEmail() {
     try {
       const { data } = await authApi.verifyEmail({ userId, otp: code });
       localStorage.setItem('accessToken', data.data.accessToken);
-      toast.success('Email verified!');
+      toast.success('Email verified! Welcome to FinVault!');
       navigate('/dashboard');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Invalid OTP');
     } finally { setLoading(false); }
+  };
+
+  // FIX: Resend OTP actually calls the API now
+  const resend = async () => {
+    setResending(true);
+    try {
+      await authApi.resendOtp({ userId });
+      toast.success('New OTP sent to your email!');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to resend OTP');
+    } finally { setResending(false); }
   };
 
   return (
@@ -215,10 +231,11 @@ export function VerifyEmail() {
         <p style={{ fontSize: 14, color: 'var(--text-2)', textAlign: 'center', marginBottom: 24 }}>
           We sent a 6-digit code to <strong>{email}</strong>. It expires in 10 minutes.
         </p>
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 24 }}>
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 24 }} onPaste={handlePaste}>
           {otp.map((v, i) => (
             <input key={i} id={`otp-${i}`}
-              style={{ width: 48, height: 54, textAlign: 'center', fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)', border: '2px solid var(--border)', borderRadius: 8, outline: 'none', transition: 'border 200ms' }}
+              style={{ width: 48, height: 54, textAlign: 'center', fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)', border: '2px solid var(--border)', borderRadius: 8, outline: 'none', transition: 'border 200ms', background: 'var(--surface)', color: 'var(--text)' }}
               maxLength={1} value={v}
               onChange={e => handleOtpChange(e.target.value, i)}
               onKeyDown={e => handleKeyDown(e, i)}
@@ -232,8 +249,16 @@ export function VerifyEmail() {
         </button>
         <p style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: 'var(--text-3)' }}>
           Didn't receive it?{' '}
-          <button style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
-            onClick={() => toast.info('New OTP sent!')}>Resend OTP</button>
+          <button
+            style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+            onClick={resend}
+            disabled={resending}
+          >
+            {resending ? 'Sending...' : 'Resend OTP'}
+          </button>
+        </p>
+        <p style={{ textAlign: 'center', marginTop: 8 }}>
+          <Link to="/register" style={{ fontSize: 13, color: 'var(--text-3)' }}>← Back to register</Link>
         </p>
       </motion.div>
     </div>
@@ -243,8 +268,13 @@ export function VerifyEmail() {
 // ─── RESET PASSWORD ───────────────────────────────────
 export function ResetPassword() {
   const navigate = useNavigate();
-  const params = new URLSearchParams(window.location.search);
-  const token = params.get('token');
+
+  // FIX: Token comes from URL param (:token), not query string
+  const { token: tokenFromParam } = useParams();
+  // Fallback: also check query string (?token=...) for compatibility
+  const tokenFromQuery = new URLSearchParams(window.location.search).get('token');
+  const token = tokenFromParam || tokenFromQuery;
+
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(
       z.object({
@@ -258,6 +288,10 @@ export function ResetPassword() {
   });
 
   const onSubmit = async ({ password }) => {
+    if (!token) {
+      toast.error('Invalid or missing reset token. Please request a new password reset.');
+      return;
+    }
     try {
       await authApi.resetPassword({ token, password });
       toast.success('Password reset! Please login.');
@@ -266,6 +300,22 @@ export function ResetPassword() {
       toast.error(err.response?.data?.message || 'Reset failed');
     }
   };
+
+  if (!token) {
+    return (
+      <div style={PAGE_STYLE}>
+        <motion.div style={CARD_STYLE} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}>
+          <Logo />
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>❌</div>
+            <h3>Invalid Reset Link</h3>
+            <p style={{ color: 'var(--text-2)', fontSize: 14 }}>This reset link is invalid or has expired.</p>
+            <Link to="/forgot-password" style={{ color: 'var(--primary)', fontWeight: 600 }}>Request a new reset link</Link>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div style={PAGE_STYLE}>
@@ -295,7 +345,7 @@ export function ForgotPassword() {
     try {
       await authApi.forgotPassword({ email });
       setSent(true);
-    } catch { setSent(true); } // Always show success for security
+    } catch { setSent(true); }
   };
 
   return (
@@ -318,7 +368,7 @@ export function ForgotPassword() {
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>📬</div>
             <h3>Check your email</h3>
-            <p style={{ color: 'var(--text-2)', fontSize: 14 }}>If that email exists, we've sent a password reset link. Check your inbox.</p>
+            <p style={{ color: 'var(--text-2)', fontSize: 14 }}>If that email exists, we've sent a password reset link.</p>
           </div>
         )}
         <p style={{ textAlign: 'center', marginTop: 20, fontSize: 14 }}>
@@ -326,8 +376,5 @@ export function ForgotPassword() {
         </p>
       </motion.div>
     </div>
-    
   );
-  
-  
 }
