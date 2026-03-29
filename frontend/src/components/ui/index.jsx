@@ -205,7 +205,7 @@ export const Pagination = ({ page, totalPages, onChange }) => {
   );
 };
 
-// ─── Period Tabs ─────────────────────────────────────
+// ─── Period Tabs ──────────────
 export const PeriodTabs = ({ value, onChange, options }) => (
   <div className="period-tabs">
     {options.map(opt => (
@@ -217,7 +217,7 @@ export const PeriodTabs = ({ value, onChange, options }) => (
   </div>
 );
 
-// ─── Type Tabs ────────────────────────────────────────
+// ─── Type Tabs ───────────────
 export const TypeTabs = ({ value, onChange }) => (
   <div className="type-tabs">
     {['expense', 'income', 'transfer'].map(t => (
@@ -229,7 +229,7 @@ export const TypeTabs = ({ value, onChange }) => (
   </div>
 );
 
-// ─── Amount Display ───────────────────────────────────
+// ─── Amount Display 
 export const AmountDisplay = ({ amount, type, size = 15, className = '' }) => (
   <span className={`tx-amount ${type} ${className}`} style={{ fontSize: size }}>
     {type === 'income' ? '+' : type === 'expense' ? '−' : '↔'}
