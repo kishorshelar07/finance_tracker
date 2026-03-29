@@ -3,7 +3,7 @@ import { X, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getInitials, formatAmount, calcPercent, getProgressColor } from '../../utils/helpers';
 
-// ─── Modal ────────────────────────────────────────────
+// ─── Modal ───────────────────────────────────
 export const Modal = ({ open, onClose, title, children, footer, size = '' }) => (
   <AnimatePresence>
     {open && (
