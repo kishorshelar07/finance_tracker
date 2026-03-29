@@ -6,7 +6,6 @@ import { toast } from 'react-toastify';
 import { Modal, Spinner } from '../ui/index';
 import { ACCOUNT_TYPES, BUDGET_PERIODS, GOAL_ICONS, FREQUENCIES, CURRENCIES } from '../../constants/index';
 
-// ══════════════════════════════════════════════════════
 // ACCOUNT FORM
 // ══════════════════════════════════════════════════════
 const accSchema = z.object({
